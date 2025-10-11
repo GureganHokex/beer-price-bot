@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Конфиденциальные данные
+.env
+*.db
+*.sqlite
+*.sqlite3
+beer_orders.db
+
+# Загруженные файлы пользователей
+data/projects/
+data/uploads/
+
+# ML модели (можно обучить заново)
+ml/models/*.pkl
+ml/models/*.joblib
+
+# Логи
+*.log
+bot.log
+nohup.out
+
+# Временные файлы
+*.tmp
+*.bak
+.DS_Store
+
+# Тестовые данные
+tests/data/*.xlsx
+tests/data/*.xls
+
