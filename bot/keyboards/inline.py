@@ -76,6 +76,10 @@ def get_project_actions_keyboard(project_id: int) -> InlineKeyboardMarkup:
         text="Показать данные",
         callback_data=f"show_data:{project_id}"
     ))
+    builder.add(InlineKeyboardButton(
+        text="Сформировать заказ",
+        callback_data=f"create_order:{project_id}"
+    ))
     
     # Дополнительные действия
     builder.add(InlineKeyboardButton(
@@ -97,7 +101,7 @@ def get_project_actions_keyboard(project_id: int) -> InlineKeyboardMarkup:
         callback_data="main_menu"
     ))
     
-    builder.adjust(1, 1, 1, 2, 2)
+    builder.adjust(1, 1, 1, 1, 2, 2)
     return builder.as_markup()
 
 

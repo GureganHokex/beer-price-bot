@@ -6,7 +6,7 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
-from bot.handlers import start, order, upload, history, view, filter, menu
+from bot.handlers import start, order, upload, history, view, filter, menu, order_create
 from database.crud import init_db
 import config
 
@@ -46,6 +46,7 @@ async def main():
     dp.include_router(start.router)
     dp.include_router(menu.router)
     dp.include_router(order.router)
+    dp.include_router(order_create.router)
     dp.include_router(upload.router)
     dp.include_router(history.router)
     dp.include_router(view.router)

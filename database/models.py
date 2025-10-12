@@ -80,3 +80,41 @@ class BeerItem(Base):
     def __repr__(self):
         return f"<BeerItem(name={self.name}, brewery={self.brewery})>"
 
+
+class Order(Base):
+    """Модель заказа."""
+    
+    __tablename__ = "orders"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    status = Column(String(50), default="draft")  # draft, confirmed, completed
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    project = relationship("Project")
+    user = relationship("User")
+    items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
+    
+    def __repr__(self):
+        return f"<Order(id={self.id}, project_id={self.project_id}, status={self.status})>"
+
+
+class OrderItem(Base):
+    """Модель позиции в заказе."""
+    
+    __tablename__ = "order_items"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
+    beer_item_id = Column(Integer, ForeignKey("beer_items.id"), nullable=False)
+    quantity = Column(Integer, default=1)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    order = relationship("Order", back_populates="items")
+    beer_item = relationship("BeerItem")
+    
+    def __repr__(self):
+        return f"<OrderItem(order_id={self.order_id}, quantity={self.quantity})>"
+

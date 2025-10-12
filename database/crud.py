@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from sqlalchemy.future import select
 from sqlalchemy import delete
 
-from database.models import Base, User, Project, Upload, BeerItem
+from database.models import Base, User, Project, Upload, BeerItem, Order, OrderItem
 import config
 
 
@@ -271,4 +271,138 @@ async def delete_project(project_id: int) -> None:
         # Удаляем все связанные данные (каскадное удаление настроено в моделях)
         await session.execute(delete(Project).where(Project.id == project_id))
         await session.commit()
+
+
+# Order CRUD
+async def get_or_create_order(project_id: int, user_id: int) -> Order:
+    """
+    Получить или создать активный заказ для проекта.
+    
+    Args:
+        project_id: ID проекта
+        user_id: ID пользователя
+        
+    Returns:
+        Order: Объект заказа
+    """
+    async with async_session_maker() as session:
+        # Ищем активный заказ (статус draft)
+        result = await session.execute(
+            select(Order).where(
+                Order.project_id == project_id,
+                Order.user_id == user_id,
+                Order.status == "draft"
+            )
+        )
+        order = result.scalars().first()
+        
+        if not order:
+            # Создаем новый заказ
+            order = Order(
+                project_id=project_id,
+                user_id=user_id,
+                status="draft"
+            )
+            session.add(order)
+            await session.commit()
+            await session.refresh(order)
+        
+        return order
+
+
+async def add_item_to_order(order_id: int, beer_item_id: int, quantity: int = 1) -> OrderItem:
+    """
+    Добавить позицию в заказ или обновить количество.
+    
+    Args:
+        order_id: ID заказа
+        beer_item_id: ID позиции пива
+        quantity: Количество
+        
+    Returns:
+        OrderItem: Объект позиции заказа
+    """
+    async with async_session_maker() as session:
+        # Проверяем есть ли уже эта позиция в заказе
+        result = await session.execute(
+            select(OrderItem).where(
+                OrderItem.order_id == order_id,
+                OrderItem.beer_item_id == beer_item_id
+            )
+        )
+        order_item = result.scalars().first()
+        
+        if order_item:
+            # Обновляем количество
+            order_item.quantity += quantity
+        else:
+            # Создаем новую позицию
+            order_item = OrderItem(
+                order_id=order_id,
+                beer_item_id=beer_item_id,
+                quantity=quantity
+            )
+            session.add(order_item)
+        
+        await session.commit()
+        await session.refresh(order_item)
+        return order_item
+
+
+async def get_order_items(order_id: int) -> List[OrderItem]:
+    """
+    Получить все позиции заказа.
+    
+    Args:
+        order_id: ID заказа
+        
+    Returns:
+        List[OrderItem]: Список позиций заказа
+    """
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(OrderItem).where(OrderItem.order_id == order_id)
+        )
+        return result.scalars().all()
+
+
+async def remove_item_from_order(order_item_id: int) -> None:
+    """
+    Удалить позицию из заказа.
+    
+    Args:
+        order_item_id: ID позиции заказа
+    """
+    async with async_session_maker() as session:
+        await session.execute(delete(OrderItem).where(OrderItem.id == order_item_id))
+        await session.commit()
+
+
+async def clear_order(order_id: int) -> None:
+    """
+    Очистить все позиции заказа.
+    
+    Args:
+        order_id: ID заказа
+    """
+    async with async_session_maker() as session:
+        await session.execute(delete(OrderItem).where(OrderItem.order_id == order_id))
+        await session.commit()
+
+
+async def get_order_by_id(order_id: int) -> Optional[Order]:
+    """
+    Получить заказ по ID.
+    
+    Args:
+        order_id: ID заказа
+        
+    Returns:
+        Optional[Order]: Объект заказа или None
+    """
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(Order).where(Order.id == order_id)
+        )
+        return result.scalars().first()
 
