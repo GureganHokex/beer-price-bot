@@ -87,11 +87,16 @@ class Order(Base):
     __tablename__ = "orders"
     
     id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)  # Nullable для быстрых заказов
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     status = Column(String(50), default="draft")  # draft, confirmed, completed
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Поля для быстрого заказа
+    filename = Column(String(255), nullable=True)  # Имя загруженного файла
+    original_data = Column(Text, nullable=True)  # JSON исходных данных
+    order_data = Column(Text, nullable=True)  # JSON данных заказа
     
     project = relationship("Project")
     user = relationship("User")

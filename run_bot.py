@@ -6,9 +6,14 @@ import logging
 from bot.main import main
 
 if __name__ == "__main__":
+    # Настройка логирования
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[
+            logging.FileHandler("bot.log", encoding="utf-8"),
+            logging.StreamHandler()
+        ]
     )
     asyncio.run(main())
 

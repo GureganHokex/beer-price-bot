@@ -6,7 +6,7 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
-from bot.handlers import start, order, upload, history, view, filter, menu, order_create
+from bot.handlers import start, quick_order
 from database.crud import init_db
 import config
 
@@ -34,23 +34,15 @@ async def main():
     # Настройка меню команд (левая панель в Telegram)
     from aiogram.types import BotCommand
     commands = [
-        BotCommand(command="start", description="Главное меню"),
-        BotCommand(command="newproject", description="Создать новый проект"),
-        BotCommand(command="projects", description="Мои проекты"),
-        BotCommand(command="help", description="Помощь и инструкции"),
+        BotCommand(command="start", description="Начать работу"),
+        BotCommand(command="help", description="Помощь"),
     ]
     await bot.set_my_commands(commands)
     logger.info("Меню команд установлено")
     
     # Регистрация роутеров
     dp.include_router(start.router)
-    dp.include_router(menu.router)
-    dp.include_router(order.router)
-    dp.include_router(order_create.router)
-    dp.include_router(upload.router)
-    dp.include_router(history.router)
-    dp.include_router(view.router)
-    dp.include_router(filter.router)
+    dp.include_router(quick_order.router)
     
     logger.info("Бот запущен")
     

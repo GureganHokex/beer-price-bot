@@ -45,3 +45,4 @@ nohup.out
 tests/data/*.xlsx
 tests/data/*.xls
 
+temp_files/*

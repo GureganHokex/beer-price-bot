@@ -53,16 +53,19 @@ class ColumnDetector:
         if 'price' in cleaned_lower or 'стоимость' in cleaned_lower:
             return "PRICE"
         
-        # BREWERY - точные совпадения
+        # BREWERY - проверяем РАНЬШЕ NAME (более специфичный термин!)
+        # "Наименование пивоварни" должно распознаться как BREWERY, а не NAME
         if cleaned_lower in ['пивоварня', 'brewery', 'производитель']:
             return "BREWERY"
+        if 'пивоварн' in cleaned_lower or 'brewery' in cleaned_lower:
+            return "BREWERY"
         
-        # NAME - точные совпадения (но НЕ "наличие"!)
-        if cleaned_lower in ['название', 'наименование', 'name', 'номенклатура']:
+        # NAME - точные совпадения (но НЕ "наличие" и НЕ "пивоварни"!)
+        if cleaned_lower in ['название', 'наименование', 'name', 'номенклатура', 'продукт', 'товар']:
             return "NAME"
         
         # STYLE - точные совпадения
-        if cleaned_lower in ['стиль', 'style', 'сорт']:
+        if cleaned_lower in ['стиль', 'style', 'сорт', 'тип']:
             return "STYLE"
         
         # VOLUME - точные совпадения
@@ -71,14 +74,19 @@ class ColumnDetector:
         if 'тара' in cleaned_lower or 'упаковк' in cleaned_lower or 'фасовк' in cleaned_lower or 'литраж' in cleaned_lower:
             return "VOLUME"
         
+        # ORDER_QUANTITY - колонка для заказа
+        if cleaned_lower in ['заказ', 'order', 'количество заказа', 'заказать']:
+            return "ORDER_QUANTITY"
+        if 'заказ' in cleaned_lower and 'заказать' not in cleaned_lower:
+            return "ORDER_QUANTITY"
+        
         # ЯВНО игнорируем служебные и технические колонки
         ignore_columns = [
             'этикетка', 'etiquette', 'label', 'картинка', 'фото',
             'abv', 'og', 'ibu', 'ebc',  # Технические параметры пива
-            'naличие', 'availability', 'stock', 'склад', 'остаток',  # Статус наличия
+            'наличие', 'availability', 'stock', 'склад', 'остаток',  # Статус наличия
             'годен до', 'expiry', 'expires', 'срок годности',  # Сроки
             'скидки', 'акции', 'discount', 'promo',  # Промо
-            'заказ', 'order', 'кол-во',  # Заказ/количество
             'стоимость', 'сумма',  # Дублирует цену
             'код', 'sku', 'артикул', 'id',  # Коды и артикулы
             'описание', 'description', 'комментарий',  # Описания
@@ -89,7 +97,7 @@ class ColumnDetector:
         # Проверяем точное совпадение и вхождение
         if cleaned_lower in ignore_columns:
             return "IGNORE"
-        if any(ignored in cleaned_lower for ignored in ['unnamed', 'остаток', 'заказ', 'сумма', 'код', 'срок', 'годн', 'abv', 'ibu', 'og', 'наличи']):
+        if any(ignored in cleaned_lower for ignored in ['unnamed', 'остаток', 'сумма', 'код', 'срок', 'годн', 'abv', 'ibu', 'og', 'наличи']):
             return "IGNORE"
         
         # Использование ML-модели

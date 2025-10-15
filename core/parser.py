@@ -53,9 +53,14 @@ class ExcelParser:
             
             print(f"Обработка {len(sheet_names)} листов...")
             
-            for sheet_name in sheet_names:
+            for sheet_idx, sheet_name in enumerate(sheet_names):
                 # Читаем каждый лист
-                df = self._read_excel_with_header_detection(file_path, sheet_name=sheet_name)
+                result = self._read_excel_with_header_detection(file_path, sheet_name=sheet_name)
+                
+                if result is None:
+                    continue
+                
+                df, header_row_idx = result
                 
                 if df is None or df.empty:
                     continue
@@ -67,8 +72,8 @@ class ExcelParser:
                 if self.auto_learn:
                     self._learn_from_columns(column_types)
                 
-                # Извлечение данных
-                beer_items = self._extract_beer_items(df, column_types, brewery)
+                # Извлечение данных (передаем sheet_index и header_row_idx)
+                beer_items = self._extract_beer_items(df, column_types, brewery, sheet_index=sheet_idx, header_row_idx=header_row_idx)
                 all_beer_items.extend(beer_items)
                 
                 print(f"  • {sheet_name}: {len(beer_items)} позиций")
@@ -109,7 +114,7 @@ class ExcelParser:
         # Перезагружаем детектор
         self.detector._load_model()
     
-    def _read_excel_with_header_detection(self, file_path: str, sheet_name=0) -> Optional[pd.DataFrame]:
+    def _read_excel_with_header_detection(self, file_path: str, sheet_name=0) -> Optional[tuple]:
         """
         Прочитать Excel с автоматическим определением строки заголовков.
         
@@ -118,46 +123,80 @@ class ExcelParser:
             sheet_name: Номер или название листа (по умолчанию 0)
             
         Returns:
-            Optional[pd.DataFrame]: DataFrame или None
+            Optional[tuple]: Кортеж (DataFrame, header_row_index) или None
         """
         # Сначала читаем без заголовков
         df_raw = pd.read_excel(file_path, sheet_name=sheet_name, header=None)
         
         if df_raw.empty:
-            return None
+            return None, 0
         
-        # Ищем строку с заголовками (содержит ключевые слова)
-        header_keywords = [
-            'название', 'наименование', 'name', 'пиво', 'beer', 'product',
-            'цена', 'price', 'стоимость', 'cost',
-            'объем', 'объём', 'volume', 'тара',
-            'стиль', 'style', 'тип', 'type'
-        ]
+        # Оптимизация: сразу убираем полностью пустые строки и столбцы
+        df_raw = df_raw.dropna(how='all').dropna(axis=1, how='all')
+        if df_raw.empty:
+            return None, 0
         
+        # Ищем строку с заголовками (содержит ключевые колонки)
+        # Ищем строку, где есть явные заголовки колонок (название И цена)
         header_row = None
+        best_match_score = 0
+        
         for idx, row in df_raw.iterrows():
-            # Считаем сколько ключевых слов найдено в строке
-            row_text = ' '.join([str(cell).lower() for cell in row if pd.notna(cell)])
-            matches = sum(1 for keyword in header_keywords if keyword in row_text)
-            
-            # Если найдено 2+ ключевых слова - это заголовки
-            if matches >= 2:
-                header_row = idx
+            if idx > 10:  # Ищем только в первых 10 строках
                 break
+            
+            # Проверяем каждую ячейку строки
+            score = 0
+            non_empty_cells = 0
+            long_cells = 0  # Счетчик длинных ячеек (не подходит для заголовков)
+            
+            for cell in row:
+                if pd.notna(cell):
+                    cell_str = str(cell).strip()
+                    cell_lower = cell_str.lower()
+                    non_empty_cells += 1
+                    
+                    # Если ячейка очень длинная (> 50 символов) - это не заголовок
+                    if len(cell_str) > 50:
+                        long_cells += 1
+                    
+                    # Даем баллы за наличие ключевых заголовков
+                    if cell_lower in ['название', 'наименование', 'name', 'продукт', 'товар']:
+                        score += 10
+                    if cell_lower in ['цена', 'price', 'стоимость']:
+                        score += 10
+                    if cell_lower in ['стиль', 'style', 'тип']:
+                        score += 5
+                    if 'объем' in cell_lower or 'тара' in cell_lower or 'volume' in cell_lower or 'фасовк' in cell_lower:
+                        score += 5
+                    if cell_lower in ['пивоварня', 'brewery', 'производитель'] or 'пивоварн' in cell_lower:
+                        score += 5
+            
+            # Строка с заголовками должна:
+            # 1. Иметь минимум 2 ключевые колонки (название + цена = 20 баллов)
+            # 2. НЕ содержать много длинных ячеек (максимум 1 длинная из 5+)
+            if score >= 20 and score > best_match_score:
+                # Проверяем что не слишком много длинных ячеек
+                if non_empty_cells > 0 and long_cells / non_empty_cells < 0.5:
+                    best_match_score = score
+                    header_row = idx
         
         # Если нашли заголовки - читаем с них
         if header_row is not None:
             df = pd.read_excel(file_path, sheet_name=sheet_name, header=header_row)
-            # Пропускаем пустые строки после заголовков
-            df = df.dropna(how='all')
+            # НЕ УДАЛЯЕМ пустые строки - нам нужны оригинальные индексы!
+            # Сохраняем оригинальные индексы строк из Excel
+            df['_original_row'] = range(header_row + 2, header_row + 2 + len(df))
             # Очищаем имена колонок от пробелов
-            df.columns = [str(col).strip() for col in df.columns]
-            return df
+            df.columns = [str(col).strip() if col != '_original_row' else col for col in df.columns]
+            # Возвращаем DataFrame и индекс строки заголовка (в нумерации Excel: +1)
+            return df, header_row + 1
         else:
             # Если не нашли - читаем как обычно
             df = pd.read_excel(file_path, sheet_name=sheet_name)
-            df.columns = [str(col).strip() for col in df.columns]
-            return df
+            df['_original_row'] = range(2, 2 + len(df))
+            df.columns = [str(col).strip() if col != '_original_row' else col for col in df.columns]
+            return df, 0
     
     def _classify_columns(self, df: pd.DataFrame) -> Dict[str, str]:
         """
@@ -172,6 +211,9 @@ class ExcelParser:
         column_types = {}
         
         for col in df.columns:
+            # Пропускаем служебные колонки
+            if col == '_original_row':
+                continue
             col_type = self.detector.detect_column_type(str(col))
             column_types[col] = col_type
         
@@ -181,7 +223,9 @@ class ExcelParser:
         self,
         df: pd.DataFrame,
         column_types: Dict[str, str],
-        brewery: Optional[str]
+        brewery: Optional[str],
+        sheet_index: int = 0,
+        header_row_idx: int = 0
     ) -> List[Dict]:
         """
         Извлечь позиции пива из DataFrame.
@@ -190,11 +234,17 @@ class ExcelParser:
             df: DataFrame с данными
             column_types: Типы колонок
             brewery: Название пивоварни
+            sheet_index: Индекс листа в Excel файле
+            header_row_idx: Индекс строки заголовка в Excel (для правильного расчета _row_index)
             
         Returns:
             List[Dict]: Список позиций пива
         """
         beer_items = []
+        
+        # Оптимизация: предварительно фильтруем DataFrame
+        # Убираем строки где нет названия или цены
+        df = df.dropna(subset=[col for col, typ in column_types.items() if typ in ["NAME", "PRICE"]], how='all')
         
         # Найти колонки по типам
         name_cols = [col for col, typ in column_types.items() if typ == "NAME"]
@@ -218,15 +268,21 @@ class ExcelParser:
         # Для объема: игнорируем колонку "заказ" - там количество, а не объем
         volume_cols = [col for col in volume_cols if 'заказ' not in col.lower() and 'order' not in col.lower()]
         
+        # ORDER_QUANTITY - колонка для заказа
+        order_cols = [col for col, typ in column_types.items() if typ == "ORDER_QUANTITY"]
+        
         # Обработка каждой строки
         last_beer_name = None  # Для подхвата названия для кег в следующих строках
         
-        for idx, row in df.iterrows():
-            # Пропускаем пустые строки
-            if row.isna().all():
+        for row_num, (idx, row) in enumerate(df.iterrows()):
+            # Пропускаем пустые строки (кроме _original_row)
+            if row.drop('_original_row', errors='ignore').isna().all():
                 continue
             
             # Извлечение данных
+            # Используем оригинальный номер строки из Excel, который мы сохранили
+            excel_row = int(row['_original_row']) if '_original_row' in row else (header_row_idx + 1 + row_num)
+            
             item = {
                 "пивоварня": brewery,
                 "название": None,
@@ -234,6 +290,9 @@ class ExcelParser:
                 "объем": None,
                 "цена": None,
                 "остаток": None,
+                "заказ": None,
+                "_row_index": excel_row,
+                "_sheet_index": sheet_index,
             }
             
             # Название
@@ -320,6 +379,18 @@ class ExcelParser:
                         except (ValueError, TypeError):
                             # Если не число - сохраняем текст
                             item["остаток"] = val_str
+                        break
+            
+            # Заказ (колонка ORDER_QUANTITY)
+            if order_cols:
+                for col in order_cols:
+                    val = row[col]
+                    if pd.notna(val):
+                        # Пробуем преобразовать в число
+                        try:
+                            item["заказ"] = int(float(val))
+                        except (ValueError, TypeError):
+                            item["заказ"] = 0  # По умолчанию 0
                         break
             
             # Фильтрация: добавляем только валидные позиции пива

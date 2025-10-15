@@ -406,3 +406,37 @@ async def get_order_by_id(order_id: int) -> Optional[Order]:
         )
         return result.scalars().first()
 
+
+async def create_quick_order(
+    session: AsyncSession,
+    user_id: int,
+    filename: str,
+    original_data: str,
+    order_data: str
+) -> Order:
+    """
+    Создать быстрый заказ (без проекта).
+    
+    Args:
+        session: Сессия базы данных
+        user_id: ID пользователя
+        filename: Имя загруженного файла
+        original_data: JSON исходных данных
+        order_data: JSON данных заказа
+        
+    Returns:
+        Order: Созданный заказ
+    """
+    order = Order(
+        user_id=user_id,
+        project_id=None,
+        status="confirmed",
+        filename=filename,
+        original_data=original_data,
+        order_data=order_data
+    )
+    session.add(order)
+    await session.commit()
+    await session.refresh(order)
+    return order
+
